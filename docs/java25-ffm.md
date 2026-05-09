@@ -47,19 +47,34 @@ real benefits on Windows.
 
 | Today (AWT path) | After Phase 1 (FFM + GTK4) |
 |---|---|
-| `libX11.so.6`, `libXext`, `libXrender`, `libXi`, `libXtst` | **None** when `GDK_BACKEND=wayland` |
+| **X server connection** (`/tmp/.X11-unix/X0`), required to render | **None** — Wayland display socket is the only connection |
+| `sun.awt.X11.XToolkit` init, AWT X11 backend code | **None** — GTK4 owns the window directly |
 | `libjawt.so` (Java AWT Native Interface) | **None** |
-| `sun.awt.X11.XToolkit` init, X server connection on startup | **None** — GTK4 owns the window directly |
 | `sun.java2d.*` pipeline (Java2D OpenGL, software, headless probes) | **None** — Skia is the only renderer |
 | AWT clipboard / DnD / IME — broken on Wayland | GTK4 native — works on Wayland |
 | AWT fractional scaling — broken on Wayland in JDK 25 | GTK4 native — works |
 | AT-SPI accessibility through AWT — broken on Wayland | GTK4 native AT-SPI — works |
 | 100–300 ms AWT startup cost (X connection, font init, L&F) | Skipped |
 
-Headline: **the deployable image has zero `libX11` runtime dependency.**
-Skiko-based Java apps run on Wayland-only environments (Fedora
-Silverblue, Steam Deck Desktop mode, GNOME-on-Wayland with X11 disabled,
-etc.) without XWayland fallback.
+**Important nuance, validated by the GTK4 FFM spike at
+`samples/Gtk4FfmSpike/`:** with stock Fedora packages and
+`GDK_BACKEND=wayland`, the spike opens **zero X server connections** —
+verified by inspecting `/proc/<pid>/fd/` for socket peers; the only
+display connection is to `$XDG_RUNTIME_DIR/wayland-0`. *However*,
+`libX11.so.6` and several `libxcb-*` libraries are still mapped into
+the process address space, transitively pulled in by Mesa's GPU stack
+(DRI3 buffer sharing) and by GTK4's `libgtk-4.so.1` which is built with
+both backends. Library mapping is not the same as an X server
+dependency.
+
+| Goal | Status with stock distro packages |
+|---|---|
+| Run on a Wayland-only system with no X server present | **Achievable** today. App makes no X server connection. |
+| Zero `libX11.so.6` mapped into the process | **Not achievable** without custom GTK + Mesa builds (`-Dx11-backend=false`, `--without-x`). |
+
+For most deployment targets (Fedora Silverblue, Steam Deck Desktop
+mode, GNOME-on-Wayland with X11 disabled), the first row is what
+matters — and that one is achieved.
 
 ### Windows
 
@@ -357,6 +372,37 @@ skiko's Kotlin/Gradle to versions that handle JDK 25 (Kotlin 2.1+ /
 Gradle 9.0+) is a prerequisite for any FFM work, and is unrelated to
 FFM itself. The benchmarks subproject ships its own Gradle 9.5.0
 wrapper so it can run independently against the published artifact.
+
+## Spike Validation
+
+The riskiest unprecedented path in this evaluation — Phase 1B's GTK4
+binding from JVM via FFM, with no template in the existing Skiko
+codebase — has been validated by a working spike at
+`samples/Gtk4FfmSpike/`. Findings:
+
+- **FFM downcall**: 8 GTK / GObject / GIO functions resolved cleanly
+  via `Linker.downcallHandle`. No native shim. (`gtk_application_new`,
+  `gtk_application_window_new`, `gtk_window_set_title`,
+  `gtk_window_set_default_size`, `gtk_window_present`,
+  `g_application_run`, `g_signal_connect_data`, `g_object_unref`.)
+- **FFM upcall**: the `activate` GObject signal handler executed via
+  `Linker.upcallStub` bound to a Kotlin top-level function. Confirms
+  the upcall mechanism works for the GObject signal-callback shape.
+- **Window presented**: a real Wayland-compositor window appeared on
+  the GNOME session.
+- **AWT bypass confirmed**: `/proc/<pid>/maps` showed zero `libjawt`,
+  `libawt`, `libfontmanager`, `libsplashscreen` entries. The JVM never
+  initialized AWT.
+- **No X server connection**: `/proc/<pid>/fd/` showed UDS connections
+  to `$XDG_RUNTIME_DIR/wayland-0` and D-Bus, but no
+  `/tmp/.X11-unix/X0`. Confirms the spike runs without contacting an X
+  server.
+- **`libX11.so.6` still mapped** (the nuance noted in "Linux" above):
+  pulled in transitively by Mesa and by GTK4's bundled X11 backend
+  code, even when only Wayland is used.
+
+The spike is ~150 lines of Kotlin. Full details and verification
+commands are in `samples/Gtk4FfmSpike/README.md`.
 
 ## Anchor Numbers (verified)
 
