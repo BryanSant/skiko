@@ -62,3 +62,37 @@ internal fun connectRenderSignal(area: MemorySegment, handler: RenderHandler): L
 internal fun disconnectRenderSignal(area: MemorySegment) {
     renderHandlers.remove(area.address())
 }
+
+// --- "activate" signal on GApplication ---
+//
+// Callback shape: void activate(GApplication*, gpointer user_data).
+// GApplication emits this once after g_application_run() registers the
+// app on the bus. GTK4 forbids creating widgets before activation, so
+// the application's widget tree is built inside this handler.
+
+private val activateHandlers = ConcurrentHashMap<Long, () -> Unit>()
+
+fun gApplicationActivateTrampoline(
+    app: MemorySegment,
+    @Suppress("UNUSED_PARAMETER") userData: MemorySegment,
+) {
+    activateHandlers[app.address()]?.invoke()
+}
+
+private val activateUpcallStub: MemorySegment by lazy {
+    upcall(
+        cls = Class.forName("org.jetbrains.skiko.awtfree.GtkSignalsKt"),
+        name = "gApplicationActivateTrampoline",
+        methodType = MethodType.methodType(
+            Void.TYPE,
+            MemorySegment::class.java,
+            MemorySegment::class.java,
+        ),
+        descriptor = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS),
+    )
+}
+
+internal fun connectActivateSignal(application: MemorySegment, handler: () -> Unit): Long {
+    activateHandlers[application.address()] = handler
+    return gSignalConnect(application, "activate", activateUpcallStub)
+}

@@ -56,6 +56,10 @@ allprojects {
 repositories {
     mavenCentral()
     google()
+    // Phase 1B awtfree demo (see :skiko:runAwtFreeDemo) consumes the
+    // skiko-awt-runtime-linux-x64 snapshot for libskiko.so. Pulled from
+    // maven local; pre-publish via the awt flavour first.
+    mavenLocal()
 }
 
 kotlin {
@@ -91,6 +95,33 @@ kotlin {
                     compilerOptions.jvmTarget.set(JvmTarget.JVM_22)
                 }
             }
+        }
+
+        // Phase 1B task 9: end-to-end demo. Skia's GL bindings still come
+        // through libskiko-jvm.so (JNI) under Phase 1; only the windowing
+        // path is FFM-bound. The .so lives inside skiko-awt-runtime, so
+        // we pull that snapshot from maven-local at runtime. Pre-publish:
+        //   ./gradlew :skiko:publishSkikoJvmRuntimeLinuxX64PublicationToMavenLocal -Pskiko.awt.enabled=true -Pskiko.native.enabled=true
+        // The transitive skiko-awt (AWT-flavoured Kotlin classes) is
+        // excluded so its actual class SkiaLayer doesn't collide with
+        // awtFreeMain's actual.
+        val awtFreeDemoNativeRuntime = configurations.detachedConfiguration(
+            dependencies.create("org.jetbrains.skiko:skiko-awt-runtime-linux-x64:${skiko.deployVersion}")
+        ).apply {
+            isTransitive = false
+        }
+        tasks.register<JavaExec>("runAwtFreeDemo") {
+            group = "phase1b"
+            description = "Phase 1B end-to-end demo: GTK4 + Skia GL via FFM."
+            dependsOn("compileKotlinAwtFree")
+            mainClass.set("org.jetbrains.skiko.awtfree.DemoKt")
+            classpath = files(
+                kotlin.jvm("awtFree").compilations["main"].output.allOutputs,
+                kotlin.jvm("awtFree").compilations["main"].compileDependencyFiles,
+                awtFreeDemoNativeRuntime,
+            )
+            jvmArgs("--enable-native-access=ALL-UNNAMED")
+            environment("GDK_BACKEND", "wayland")
         }
     }
 

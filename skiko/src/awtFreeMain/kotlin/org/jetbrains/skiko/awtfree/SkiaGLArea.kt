@@ -11,10 +11,10 @@ import org.jetbrains.skia.Surface
 import org.jetbrains.skia.SurfaceColorFormat
 import org.jetbrains.skia.SurfaceOrigin
 import org.jetbrains.skia.SurfaceProps
+import org.jetbrains.skia.makeGLWithInterface
 import org.jetbrains.skiko.Library
 import org.jetbrains.skiko.OpenGLApi
 import org.jetbrains.skiko.RenderException
-import org.jetbrains.skiko.makeGLContext
 import org.jetbrains.skiko.makeGLRenderTarget
 
 // Phase 1B task 8: Skia GL backend driver for a GtkGLArea.
@@ -52,6 +52,8 @@ class SkiaGLArea(
     private var lastWidth = -1
     private var lastHeight = -1
 
+    private var frameCount = 0L
+
     private fun render(area: MemorySegment, glContext: MemorySegment): Boolean {
         val width = gtkWidgetGetWidth(area)
         val height = gtkWidgetGetHeight(area)
@@ -59,8 +61,19 @@ class SkiaGLArea(
 
         val gl = OpenGLApi.instance
         val fbId = gl.glGetIntegerv(gl.GL_DRAW_FRAMEBUFFER_BINDING)
+        if (frameCount == 0L) {
+            println("[SkiaGLArea] first frame: ${width}x${height}, fbId=$fbId")
+        }
+        frameCount++
 
-        val context = directContext ?: makeGLContext().also { directContext = it }
+        val context = directContext ?: run {
+            // GtkGLArea on Wayland uses EGL; Skia's default
+            // GrDirectContexts::MakeGL() targets GLX and returns null
+            // here. Build an EGL-assembled GLInterface and feed it to
+            // the with-interface variant instead.
+            DirectContext.makeGLWithInterface(makeEglAssembledInterface())
+                .also { directContext = it }
+        }
 
         if (width != lastWidth || height != lastHeight || surface == null) {
             surface?.close()
