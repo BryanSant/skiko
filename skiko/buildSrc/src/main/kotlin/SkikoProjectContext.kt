@@ -112,8 +112,16 @@ internal val Project.isInIdea: Boolean
 val Project.supportAndroid: Boolean
     get() = findProperty(SkikoGradleProperties.ANDROID_ENABLED) == "true" // || isInIdea
 
+val Project.supportAwtFree: Boolean
+    get() = findProperty(SkikoGradleProperties.AWTFREE_ENABLED) == "true"
+
+// Mutually exclusive with supportAwtFree: Kotlin 2.3 forbids two
+// jvm() targets per project, so awtfree builds suppress the AWT
+// target. IDE imports default to AWT to keep the JComponent-based
+// SkiaLayer browseable; pass -Pskiko.awtfree.enabled=true to import
+// the FFM-only flavour instead.
 val Project.supportAwt: Boolean
-    get() = findProperty(SkikoGradleProperties.AWT_ENABLED) == "true" || isInIdea
+    get() = !supportAwtFree && (findProperty(SkikoGradleProperties.AWT_ENABLED) == "true" || isInIdea)
 
 val Project.supportAllNative: Boolean
     get() = findProperty(SkikoGradleProperties.NATIVE_ENABLED) == "true" || isInIdea

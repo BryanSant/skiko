@@ -140,9 +140,20 @@ queue — no AWT involved.
 
 Phase 1 builds three FFM-based JVM implementations of these same
 interfaces and adds a new `SkiaLayer` actual that does **not** extend
-`JComponent`. Working name for the new source set: `awtFreeMain`. It
-coexists with the existing `awtMain` so existing Compose Desktop apps
-keep working unchanged until they migrate.
+`JComponent`. The new source set is `awtFreeMain`, contributing to a
+new `jvm("awtFree")` Kotlin target gated on `-Pskiko.awtfree.enabled=true`.
+
+The two JVM targets are **mutually exclusive at build time**. Kotlin
+2.3 disallows declaring multiple `jvm()` targets in a single Gradle
+project, so a Skiko build configures *either* `awtMain` (today's AWT
+flavour, artifact `skiko-awt`) *or* `awtFreeMain` (the FFM-only
+flavour, artifact `skiko-awtfree`) — never both at once. Coexistence
+is therefore at the **distribution** level: ship two parallel Skiko
+release lines from the same source tree. Compose Desktop and other
+existing AWT-coupled consumers stay on the `skiko-awt` line; FFM-native
+consumers switch to `skiko-awtfree`. Both lines track the same Skia
+version and shared `commonMain`/`jvmMain` Kotlin code; they diverge
+only in the platform layer (`awtMain` vs `awtFreeMain`).
 
 ### macOS — AppKit + CAMetalLayer (lowest risk; ~6–10 weeks)
 
@@ -256,9 +267,10 @@ JetBrains):
 4. **Resource model**: unchanged. Still on JVM, still uses
    `getResource`.
 
-Skiko's side can land independently behind the `awtFreeMain` source
-set + a new artifact `skiko-jvm-native-runtime-{platform}`. Compose can
-opt in when ready.
+Skiko's side ships as the separate `skiko-awtfree` artifact (built
+from `awtFreeMain` under `-Pskiko.awtfree.enabled=true`). Compose can
+opt in by switching its desktop dependency from `skiko-awt` to
+`skiko-awtfree` when its native event source is ready.
 
 ### Phases (Phase 1)
 

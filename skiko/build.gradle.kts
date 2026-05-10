@@ -78,6 +78,22 @@ kotlin {
         }
     }
 
+    if (supportAwtFree) {
+        // Phase 1B (docs/java25-ffm.md): JVM target without java.awt.
+        // Replaces jvm("awt") rather than coexisting with it — Kotlin 2.3
+        // disallows two jvm() targets in the same project. Bypasses
+        // AWT/JAWT/X11 by binding GTK4/GObject/GIO directly via Java 22+
+        // FFM. Linux-only contents today; macOS/Windows FFM-native
+        // implementations follow in Phases 1A/1C.
+        jvm("awtFree") {
+            compilations.all {
+                compileTaskProvider.configure {
+                    compilerOptions.jvmTarget.set(JvmTarget.JVM_22)
+                }
+            }
+        }
+    }
+
     if (supportAndroid) {
         androidTarget("android") {
             publishLibraryVariants("release")

@@ -255,6 +255,11 @@ class SkikoProperties(private val myProject: Project) {
 
 object SkikoGradleProperties {
     const val AWT_ENABLED = "skiko.awt.enabled"
+    // Phase 1B (docs/java25-ffm.md): when true, replaces the AWT JVM
+    // target with an FFM-only JVM target that has no java.awt deps.
+    // Mutually exclusive with AWT_ENABLED — only one JVM target may be
+    // declared per Gradle project under Kotlin 2.3.
+    const val AWTFREE_ENABLED = "skiko.awtfree.enabled"
     const val WASM_ENABLED = "skiko.wasm.enabled"
     const val ANDROID_ENABLED = "skiko.android.enabled"
     const val NATIVE_ENABLED = "skiko.native.enabled"
