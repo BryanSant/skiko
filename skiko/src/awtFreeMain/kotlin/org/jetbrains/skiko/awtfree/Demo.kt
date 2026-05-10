@@ -6,7 +6,7 @@ import org.jetbrains.skia.Rect
 
 // Phase 1B reference consumer. Shape mirrors what a downstream
 // awtfree app should look like — only public symbols from the
-// library are used. See GtkSkiaApp.kt for the API surface.
+// library are used. See SkikoApp.kt for the API surface.
 //
 // Run with:
 //   ./gradlew :skiko:runAwtFreeDemo -Pskiko.awtfree.enabled=true
@@ -41,7 +41,7 @@ fun main() {
     println("[awtfree-demo] verify clean: grep -E 'libjawt|libawt|libfontmanager' /proc/$pid/maps")
 
     val title = if (isAdwaitaAvailable) "Skiko awtfree — Adwaita" else "Skiko awtfree — GTK4"
-    val exitCode = GtkSkiaApp(
+    val exitCode = SkikoApp(
         applicationId = "org.jetbrains.skiko.awtfree.Demo",
         title = title,
     ) { canvas, width, height, isDark ->

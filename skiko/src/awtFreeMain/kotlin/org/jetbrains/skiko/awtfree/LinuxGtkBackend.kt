@@ -3,46 +3,24 @@ package org.jetbrains.skiko.awtfree
 import java.lang.foreign.MemorySegment
 import org.jetbrains.skia.Canvas
 
-/**
- * Top-level entry point for an awtfree Skiko app on Linux.
- *
- * Wires up an FFM-bound GTK4 application, a single window, and a
- * Skia GL render surface. When `libadwaita-1` is on the host the
- * window gets matching Adwaita chrome (header bar with working
- * window controls) and the system light/dark preference is tracked
- * via `AdwStyleManager`; otherwise it falls back to GTK4-baseline
- * chrome and reports `isDark = false`. Selection is controlled by
- * `-Dskiko.linux.adwaita=auto|on|off` (default `auto`).
- *
- * The [draw] lambda runs on the GTK main thread inside the
- * `GtkGLArea` render signal: GTK has bound the offscreen FBO and
- * made the GdkGLContext current before [draw] is called, so any
- * Skia operation that needs a current GL context is safe.
- *
- * Typical use:
- * ```kotlin
- * fun main() {
- *     GtkSkiaApp(
- *         applicationId = "com.example.MyApp",
- *         title = "Hello, Skiko",
- *     ) { canvas, width, height, isDark ->
- *         canvas.clear(if (isDark) 0xFF1E1E1E.toInt() else 0xFFFAFAFA.toInt())
- *         // ...your Skia drawing here...
- *     }.run()
- * }
- * ```
- *
- * Required JVM args: `--enable-native-access=ALL-UNNAMED`.
- * Required runtime libs: `libgtk-4.so.1`, `libgobject-2.0.so.0`,
- * `libgio-2.0.so.0`, `libEGL.so.1`. Optional: `libadwaita-1.so.0`.
- */
-class GtkSkiaApp(
+// Linux backend for SkikoApp: wires up an FFM-bound GTK4 application,
+// a single window, and a Skia GL render surface. When libadwaita-1 is
+// on the host the window gets matching Adwaita chrome (header bar
+// with working window controls) and the system light/dark preference
+// is tracked via AdwStyleManager; otherwise it falls back to
+// GTK4-baseline chrome and reports isDark = false. Selection is
+// controlled by -Dskiko.linux.adwaita=auto|on|off (default auto).
+//
+// Internal — consumers go through SkikoApp, which dispatches to this
+// backend (or future LinuxX11Backend / MacAppKitBackend / WinD3DBackend)
+// based on hostOs.
+internal class LinuxGtkBackend(
     private val applicationId: String,
-    private val title: String = "Skiko",
-    private val defaultWidth: Int = 800,
-    private val defaultHeight: Int = 600,
+    private val title: String,
+    private val defaultWidth: Int,
+    private val defaultHeight: Int,
     private val draw: (canvas: Canvas, width: Int, height: Int, isDark: Boolean) -> Unit,
-) {
+) : SkikoAppBackend {
     // AdwApplication subclasses GtkApplication; GApplication-shaped
     // bindings (run, signal connect) work against either handle.
     private val useAdwaita = isAdwaitaAvailable
@@ -102,6 +80,5 @@ class GtkSkiaApp(
         gtkWindowPresent(window)
     }
 
-    /** Runs the GTK main loop until the last window closes. Returns the application exit code. */
-    fun run(): Int = gApplicationRun(app)
+    override fun run(): Int = gApplicationRun(app)
 }
