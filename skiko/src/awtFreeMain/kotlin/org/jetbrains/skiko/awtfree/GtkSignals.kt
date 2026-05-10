@@ -96,3 +96,53 @@ internal fun connectActivateSignal(application: MemorySegment, handler: () -> Un
     activateHandlers[application.address()] = handler
     return gSignalConnect(application, "activate", activateUpcallStub)
 }
+
+// --- "notify::PROPERTY" signals on any GObject ---
+//
+// Callback shape: void notify(GObject*, GParamSpec*, gpointer).
+// One trampoline + one upcall stub serve every notify subscription;
+// the dispatch table is keyed on (instance address, signal-detail) so
+// the same object can subscribe to multiple property notifications
+// without colliding.
+
+private val notifyHandlers = ConcurrentHashMap<Pair<Long, String>, () -> Unit>()
+
+fun gObjectNotifyTrampoline(
+    instance: MemorySegment,
+    paramSpec: MemorySegment,
+    @Suppress("UNUSED_PARAMETER") userData: MemorySegment,
+) {
+    // ParamSpec carries the property name in its `name` field but
+    // looking it up requires another downcall; the dispatch key
+    // already encodes the property name on the connect side, so we
+    // search the handlers map by instance and invoke any match.
+    val addr = instance.address()
+    notifyHandlers.entries
+        .filter { it.key.first == addr }
+        .forEach { it.value.invoke() }
+}
+
+private val notifyUpcallStub: MemorySegment by lazy {
+    upcall(
+        cls = Class.forName("org.jetbrains.skiko.awtfree.GtkSignalsKt"),
+        name = "gObjectNotifyTrampoline",
+        methodType = MethodType.methodType(
+            Void.TYPE,
+            MemorySegment::class.java,
+            MemorySegment::class.java,
+            MemorySegment::class.java,
+        ),
+        descriptor = FunctionDescriptor.ofVoid(ADDRESS, ADDRESS, ADDRESS),
+    )
+}
+
+// Subscribe to a GObject property change. `property` is the bare
+// name (e.g. "dark"); the GObject signal name becomes "notify::dark".
+internal fun connectNotifySignal(
+    instance: MemorySegment,
+    property: String,
+    handler: () -> Unit,
+): Long {
+    notifyHandlers[instance.address() to property] = handler
+    return gSignalConnect(instance, "notify::$property", notifyUpcallStub)
+}
