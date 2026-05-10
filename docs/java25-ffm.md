@@ -170,14 +170,17 @@ only in the platform layer (`awtMain` vs `awtFreeMain`).
   `-XstartOnFirstThread` is the established workaround; same constraint
   as today's AWT path on macOS.
 
-### Linux — GTK4 only, no libadwaita (highest risk; ~12–16 weeks)
+### Linux — GTK4 baseline + optional libadwaita (highest risk; ~12–16 weeks)
 
 **This is the X11-elimination milestone — the headline of the entire
 project.**
 
 - **Bind path**: FFM → `libgtk-4.so.1`, `libgobject-2.0.so.0`,
-  `libgio-2.0.so.0`, `libgdk-4.so.1`. **No libadwaita.** GObject's C ABI
-  is FFM-friendly: every method is a flat C function (`gtk_application_new`,
+  `libgio-2.0.so.0`, `libgdk-4.so.1` for the baseline. `libadwaita-1.so.0`
+  is an *optional* runtime dependency, probed via FFM's
+  `SymbolLookup.libraryLookup` and used when present (see "Why GTK4
+  alone" below for the chrome reasoning). GObject's C ABI is
+  FFM-friendly: every method is a flat C function (`gtk_application_new`,
   `gtk_window_new`, `gtk_gl_area_new`, `g_signal_connect`,
   `g_application_run`).
 - **What we wrap**:
@@ -200,12 +203,19 @@ project.**
   - `GtkGLArea` for the OpenGL context that Skia's
     `BackendRenderTarget.makeGL(...)` consumes.
   - `GMainContext` event-loop integration with the JVM render thread.
-- **Why GTK4 alone**: avoids the libadwaita runtime dep (which lags
-  GTK4 on some distros and isn't yet ubiquitous on enterprise/LTS
-  Linux). GTK4 alone provides everything Skiko needs: header bar,
-  light/dark detection, AT-SPI accessibility, IME, HiDPI, clipboard,
-  drag-and-drop. We give up Adwaita-styled native widgets — but Skiko
-  draws its own UI via Skia, so widget styling isn't relevant.
+- **Why GTK4 baseline, libadwaita optional**: GTK4 alone provides
+  everything Skiko needs functionally — header bar, light/dark
+  detection, AT-SPI accessibility, IME, HiDPI, clipboard, drag-and-drop.
+  Skiko's *widgets* are Skia-drawn, so libadwaita's widget styling is
+  irrelevant. But the *window chrome* (titlebar buttons, window-corner
+  rounding, CSD theme) is GTK-rendered, and a `GtkApplicationWindow`
+  on a modern GNOME desktop visibly mismatches the surrounding Adwaita-
+  styled apps. Loading libadwaita at runtime (via FFM symbol probe)
+  swaps `GtkApplication`/`GtkApplicationWindow` for `AdwApplication`/
+  `AdwApplicationWindow` and the chrome matches the host. When
+  libadwaita isn't installed (enterprise/LTS Linux, minimal images,
+  non-GNOME desktops), the GTK4 baseline runs unchanged. Selection is
+  controlled by `-Dskiko.linux.adwaita=auto|on|off` (default `auto`).
 - **Why not raw Wayland?** GTK4 with `GDK_BACKEND=wayland` *is*
   effectively Wayland-direct from a deployment standpoint — X11 is
   fallback only. GTK4 brings window-management primitives (header bar,
@@ -494,10 +504,11 @@ Results land in `benchmarks/build/reports/jmh/results.json`.
 3. **WinUI 3**. Out of scope. Future option once Win32 ships and
    stabilizes, if Fluent styling and accessibility ever become
    relevant. Skiko's self-drawn UI makes XAML styling marginal.
-4. **Linux toolkit refinement**. GTK4 alone (decided). Future options
-   if GTK4's runtime cost ever becomes a concern: (a) raw Wayland for a
-   smaller dep footprint, (b) libadwaita on top if Adwaita-styled
-   native widgets become useful (unlikely given Skiko's self-drawn UI).
+4. **Linux toolkit refinement**. GTK4 baseline + optional libadwaita
+   (decided). libadwaita engages at runtime when present so window
+   chrome matches an Adwaita host; the GTK4 baseline runs unchanged
+   when it isn't. Future option if GTK4's runtime cost ever becomes a
+   concern: raw Wayland for a smaller dep footprint.
 5. **GraalVM native-image**. FFM upcall stubs have known native-image
    friction. Documented limitation; not blocking.
 6. **Compose Desktop runtime fork timeline**. Outside Skiko's control.

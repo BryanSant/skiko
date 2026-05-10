@@ -42,19 +42,35 @@ private fun draw(canvas: Canvas, width: Int, height: Int) {
 }
 
 class GtkSkiaApp(applicationId: String) {
-    private val app: MemorySegment = gtkApplicationNew(applicationId, G_APPLICATION_NON_UNIQUE)
+    // AdwApplication subclasses GtkApplication; handles flow through
+    // gApplicationRun / connectActivateSignal unchanged.
+    private val useAdwaita = isAdwaitaAvailable
+    private val app: MemorySegment =
+        if (useAdwaita) adwApplicationNew(applicationId, G_APPLICATION_NON_UNIQUE)
+        else gtkApplicationNew(applicationId, G_APPLICATION_NON_UNIQUE)
 
     init {
         connectActivateSignal(app, ::onActivate)
     }
 
     private fun onActivate() {
-        val window = gtkApplicationWindowNew(app)
-        gtkWindowSetTitle(window, "Skiko awtfree — Phase 1B")
-        gtkWindowSetDefaultSize(window, 800, 600)
-
+        val title = if (useAdwaita) "Skiko awtfree — Adwaita" else "Skiko awtfree — GTK4"
         val skia = SkiaGLArea(::draw)
-        gtkWindowSetChild(window, skia.area)
+
+        val window = if (useAdwaita) {
+            // AdwApplicationWindow owns its chrome; mount via set_content.
+            val w = adwApplicationWindowNew(app)
+            gtkWindowSetTitle(w, title)
+            gtkWindowSetDefaultSize(w, 800, 600)
+            adwApplicationWindowSetContent(w, skia.area)
+            w
+        } else {
+            val w = gtkApplicationWindowNew(app)
+            gtkWindowSetTitle(w, title)
+            gtkWindowSetDefaultSize(w, 800, 600)
+            gtkWindowSetChild(w, skia.area)
+            w
+        }
 
         gtkWindowPresent(window)
     }
@@ -65,6 +81,7 @@ class GtkSkiaApp(applicationId: String) {
 fun main() {
     val pid = ProcessHandle.current().pid()
     println("[awtfree-demo] JVM ${System.getProperty("java.version")}, PID=$pid")
+    println("[awtfree-demo] chrome: ${if (isAdwaitaAvailable) "libadwaita-1" else "gtk4 baseline"}")
     println("[awtfree-demo] verify clean: grep -E 'libjawt|libawt|libfontmanager' /proc/$pid/maps")
     val exitCode = GtkSkiaApp("org.jetbrains.skiko.awtfree.Demo").run()
     if (exitCode != 0) System.exit(exitCode)

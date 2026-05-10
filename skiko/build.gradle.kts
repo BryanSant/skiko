@@ -122,6 +122,11 @@ kotlin {
             )
             jvmArgs("--enable-native-access=ALL-UNNAMED")
             environment("GDK_BACKEND", "wayland")
+            // Forward -Dskiko.linux.adwaita=auto|on|off so the demo
+            // can be exercised in either chrome mode from the CLI.
+            System.getProperty("skiko.linux.adwaita")?.let {
+                systemProperty("skiko.linux.adwaita", it)
+            }
         }
     }
 
