@@ -126,3 +126,19 @@ private val gtkGlAreaSetHasStencilBufferHandle: MethodHandle = downcall(
 internal fun gtkGlAreaSetHasStencilBuffer(area: MemorySegment, has: Boolean) {
     gtkGlAreaSetHasStencilBufferHandle.invoke(area, if (has) 1 else 0)
 }
+
+private val gtkWidgetGetWidthHandle: MethodHandle = downcall(
+    gtk, "gtk_widget_get_width",
+    FunctionDescriptor.of(INT, ADDRESS),
+)
+
+internal fun gtkWidgetGetWidth(widget: MemorySegment): Int =
+    gtkWidgetGetWidthHandle.invoke(widget) as Int
+
+private val gtkWidgetGetHeightHandle: MethodHandle = downcall(
+    gtk, "gtk_widget_get_height",
+    FunctionDescriptor.of(INT, ADDRESS),
+)
+
+internal fun gtkWidgetGetHeight(widget: MemorySegment): Int =
+    gtkWidgetGetHeightHandle.invoke(widget) as Int
