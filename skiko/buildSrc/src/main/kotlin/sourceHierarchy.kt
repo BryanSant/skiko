@@ -3,13 +3,15 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.plugin.KotlinHierarchyTemplate
 
-val SkikoProjectContext.jvmMainSourceSet get() = if (project.supportAwt) kotlin.sourceSets.getByName("jvmMain") else null
+val SkikoProjectContext.jvmMainSourceSet get() = if (project.supportAwt || project.supportAwtFree) kotlin.sourceSets.getByName("jvmMain") else null
 
-val SkikoProjectContext.jvmTestSourceSet get() = if (project.supportAwt) kotlin.sourceSets.getByName("jvmTest") else null
+val SkikoProjectContext.jvmTestSourceSet get() = if (project.supportAwt || project.supportAwtFree) kotlin.sourceSets.getByName("jvmTest") else null
 
 val SkikoProjectContext.awtMainSourceSet get() = if (project.supportAwt) kotlin.sourceSets.getByName("awtMain") else null
 
 val SkikoProjectContext.awtTestSourceSet get() = if (project.supportAwt) kotlin.sourceSets.getByName("awtTest") else null
+
+val SkikoProjectContext.awtFreeMainSourceSet get() = if (project.supportAwtFree) kotlin.sourceSets.getByName("awtFreeMain") else null
 
 val SkikoProjectContext.androidMainSourceSet get() = if (project.supportAndroid) kotlin.sourceSets.getByName("androidMain") else null
 

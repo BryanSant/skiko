@@ -1,3 +1,6 @@
+@file:Suppress("DEPRECATION")
+@file:OptIn(org.jetbrains.kotlin.gradle.ExperimentalWasmDsl::class)
+
 import org.jetbrains.kotlin.gradle.plugin.mpp.*
 
 buildscript {
@@ -17,7 +20,6 @@ buildscript {
 
 plugins {
     kotlin("multiplatform")
-    id("org.jetbrains.gradle.apple.applePlugin") version "222.3345.143-0.16"
 }
 
 repositories {
@@ -302,7 +304,7 @@ if (hostOs == "macos") {
     val targetBuildDir: String? = System.getenv("TARGET_BUILD_DIR")
     val executablePath: String? = System.getenv("EXECUTABLE_PATH")
     val buildType = System.getenv("CONFIGURATION")?.let {
-        org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType.valueOf(it.toUpperCase())
+        org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType.valueOf(it.uppercase())
     } ?: org.jetbrains.kotlin.gradle.plugin.mpp.NativeBuildType.DEBUG
 
     val currentTarget = kotlin.targets[target.key] as org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget
@@ -341,15 +343,6 @@ if (hostOs == "macos") {
     }
 }
 
-apple {
-    iosApp {
-        productName = "SkikoAppCode"
-        sceneDelegateClass = "SceneDelegate"
-        dependencies {
-            implementation(project(":"))
-        }
-    }
-}
 
 fun KotlinNativeTarget.configureToLaunchFromAppCode() {
     binaries {

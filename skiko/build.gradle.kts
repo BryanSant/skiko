@@ -58,6 +58,10 @@ repositories {
         url = uri("https://cache-redirector.jetbrains.com/maven-central")
     }
     google()
+    // Phase 1B awtfree demo (see :skiko:runAwtFreeDemo) consumes the
+    // skiko-awt-runtime-linux-x64 snapshot for libskiko.so. Pulled from
+    // maven local; pre-publish via the awt flavour first.
+    mavenLocal()
 }
 
 kotlin {
@@ -77,6 +81,54 @@ kotlin {
                 }
             }
             generateVersion(targetOs, targetArch, skiko)
+        }
+    }
+
+    if (supportAwtFree) {
+        // Phase 1B (docs/java25-ffm.md): JVM target without java.awt.
+        // Replaces jvm("awt") rather than coexisting with it — Kotlin 2.3
+        // disallows two jvm() targets in the same project. Bypasses
+        // AWT/JAWT/X11 by binding GTK4/GObject/GIO directly via Java 22+
+        // FFM. Linux-only contents today; macOS/Windows FFM-native
+        // implementations follow in Phases 1A/1C.
+        jvm("awtFree") {
+            compilations.all {
+                compileTaskProvider.configure {
+                    compilerOptions.jvmTarget.set(JvmTarget.JVM_22)
+                }
+            }
+        }
+
+        // Phase 1B task 9: end-to-end demo. Skia's GL bindings still come
+        // through libskiko-jvm.so (JNI) under Phase 1; only the windowing
+        // path is FFM-bound. The .so lives inside skiko-awt-runtime, so
+        // we pull that snapshot from maven-local at runtime. Pre-publish:
+        //   ./gradlew :skiko:publishSkikoJvmRuntimeLinuxX64PublicationToMavenLocal -Pskiko.awt.enabled=true -Pskiko.native.enabled=true
+        // The transitive skiko-awt (AWT-flavoured Kotlin classes) is
+        // excluded so its actual class SkiaLayer doesn't collide with
+        // awtFreeMain's actual.
+        val awtFreeDemoNativeRuntime = configurations.detachedConfiguration(
+            dependencies.create("org.jetbrains.skiko:skiko-awt-runtime-linux-x64:${skiko.deployVersion}")
+        ).apply {
+            isTransitive = false
+        }
+        tasks.register<JavaExec>("runAwtFreeDemo") {
+            group = "phase1b"
+            description = "Phase 1B end-to-end demo: GTK4 + Skia GL via FFM."
+            dependsOn("compileKotlinAwtFree")
+            mainClass.set("org.jetbrains.skiko.awtfree.DemoKt")
+            classpath = files(
+                kotlin.jvm("awtFree").compilations["main"].output.allOutputs,
+                kotlin.jvm("awtFree").compilations["main"].compileDependencyFiles,
+                awtFreeDemoNativeRuntime,
+            )
+            jvmArgs("--enable-native-access=ALL-UNNAMED")
+            environment("GDK_BACKEND", "wayland")
+            // Forward -Dskiko.linux.adwaita=auto|on|off so the demo
+            // can be exercised in either chrome mode from the CLI.
+            System.getProperty("skiko.linux.adwaita")?.let {
+                systemProperty("skiko.linux.adwaita", it)
+            }
         }
     }
 
